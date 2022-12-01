@@ -3,7 +3,7 @@ from edge_conv import EdgeConv
 import torch_geometric as pyg
 import torch
 from torch import relu
-from torch.nn import Linear, ReLU, Sigmoid, Sequential
+from torch.nn import Linear, ReLU, Sigmoid, Sequential, ModuleList
 from torch_geometric.data.data import Data
 
 def MLP(layers):
@@ -18,22 +18,23 @@ def MLP(layers):
         
 # Message Passing Graph Generator
 class MPGG(torch.nn.Module):
-    def __init__(self, dim_z, edge_dim, layers, max_nodes):
+    def __init__(self, dim_z, edge_dim, layers, max_nodes, device):
         super(MPGG, self).__init__()
+        self.device = device
         self.dim_z = dim_z
         self.edge_dim = edge_dim
-        self.attentions = []
+        self.attentions = ModuleList()
         for i in range(len(layers)):
             self.attentions.append(MLP([edge_dim+layers[i], edge_dim//2, 1]))
         # self.selector = MLP([layers[3], layers[3]//2, layers[3]//4, 1])
-        self.convs = []
+        self.convs = ModuleList()
         for i in range(len(layers)-1):
             self.convs.append(EdgeConv(layers[i], layers[i+1], nn=self.attentions[i]))
         
         self.max_nodes = max_nodes
         self.node_generator = torch.nn.GRU(input_size=dim_z, hidden_size=layers[0])
         self.edge_generator = MLP([layers[0]*2, layers[0]*4, edge_dim])
-    
+        
     def forward(self, z):
         # Generate node attributes for all nodes
         # input is a repeated tensor of the latent vector  
@@ -48,8 +49,7 @@ class MPGG(torch.nn.Module):
         a = torch.combinations(torch.arange(self.max_nodes), r=2)
         # exchanges cols of "a", i.e. create edges in opposite direction
         b = a[:,[1,0]]
-        edge_index = torch.vstack((a,b)).t()
-        
+        edge_index = torch.vstack((a,b)).t().to(self.device)
         # Generate edge attributes for all pairs of nodes
         srcs = nodes[edge_index[0,:]]
         dsts = nodes[edge_index[1,:]]

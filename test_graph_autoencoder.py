@@ -1,9 +1,10 @@
 from graph_autoencoder import LatentGraphVAE
 import torch
 
-lgvae = LatentGraphVAE(n_channels=1, w=100, h=100)
+device = 'cuda:1'
+lgvae = LatentGraphVAE(n_channels=3, w=480, h=320, device=device).to(device)
 
-x = torch.randn((100,100))
+x = torch.randn((1,480,320)).to(device)
 
 nodes = lgvae(x)
 breakpoint()

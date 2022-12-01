@@ -11,11 +11,11 @@ from mpgg import MPGG
 # https://github.com/milesial/Pytorch-UNet
 
 class LatentGraphVAE(nn.Module):
-    def __init__(self, n_channels, w, h):
+    def __init__(self, n_channels, w, h, device):
         super(LatentGraphVAE, self).__init__()
+        self.device = device
         self.n_channels = n_channels
 
-        # TODO is this the right shape for my input?
         self.inc = DoubleConv(n_channels, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
@@ -26,12 +26,14 @@ class LatentGraphVAE(nn.Module):
         # So, total reduction is by a factor of 2**4
         wp = w//(2**4)
         hp = h//(2**4)
-        self.linear = nn.Linear(wp*hp*1024, 1024)
+        self.linear_down = nn.Linear(wp*hp*1024, 1024)
+        # TODO make this match mpgg layers in code
+        self.linear_up = nn.Linear(256, wp*hp*1024)
         
         self.mpgg = MPGG(dim_z=1024, 
                            edge_dim=128, 
                            layers=[1024, 512, 256], 
-                           max_nodes=8) #TODO maxnodes doesn't affect anything right now
+                           max_nodes=8, device=device) #TODO maxnodes doesn't affect anything right now
         
         self.up1 = Up(1024, 512)
         self.up2 = Up(512, 256)
@@ -40,22 +42,23 @@ class LatentGraphVAE(nn.Module):
         self.outc = OutConv(64, n_channels)
 
     def forward(self, x):
-        x = x.unsqueeze(0).unsqueeze(0)
-        breakpoint()
+        x = x.unsqueeze(0)
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
-        z = self.linear(x5.view(-1))
+        # flatten and linear projection of UNET down projection
+        z = self.linear_down(x5.view(-1))
         nodes = self.mpgg(z)
-        return nodes
-        # for row in nodes:
-        # x = self.up1(x5, x4)
-        # x = self.up2(x, x3)
-        # x = self.up3(x, x2)
-        # x = self.up4(x, x1)
-        # logits = self.outc(x)
+        # same conv output shape as x5, but with a batch dimension for every node
+        xup = self.linear_up(nodes).view((-1, x5.shape[1], x5.shape[2], x5.shape[3]))
+        xup1 = self.up1(xup)
+        xup2 = self.up2(xup1)
+        xup3 = self.up3(xup2)
+        xup4 = self.up4(xup3)
+        xout = self.outc(xup4)
+        return xout
         # return logits
 
 
@@ -108,19 +111,20 @@ class Up(nn.Module):
             self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
             self.conv = DoubleConv(in_channels, out_channels)
 
-    def forward(self, x1, x2):
+    def forward(self, x1):
         x1 = self.up(x1)
         # input is CHW
-        diffY = x2.size()[2] - x1.size()[2]
-        diffX = x2.size()[3] - x1.size()[3]
+        # diffY = x2.size()[2] - x1.size()[2]
+        # diffX = x2.size()[3] - x1.size()[3]
 
-        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
-                        diffY // 2, diffY - diffY // 2])
+        # x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+        #                 diffY // 2, diffY - diffY // 2])
         # if you have padding issues, see
         # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
         # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
-        x = torch.cat([x2, x1], dim=1)
-        return self.conv(x)
+        # x = torch.cat([x2, x1], dim=1)
+        # x = torch.cat(x1, dim=1)
+        return self.conv(x1)
 
 
 class OutConv(nn.Module):
