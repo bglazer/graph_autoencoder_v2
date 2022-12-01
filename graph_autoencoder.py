@@ -16,48 +16,45 @@ class LatentGraphVAE(nn.Module):
         self.device = device
         self.n_channels = n_channels
 
-        self.inc = DoubleConv(n_channels, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
-        self.down4 = Down(512, 1024)
-        
+        self.inc = DoubleConv(n_channels, 8)
+        self.down1 = Down(8, 16)
+        self.down2 = Down(16, 32)
+
+        mpgg_layers = [128, 64, 32]
         # There are 4 convolutional layers, each of which reduces the size of the input images by 2
         # So, total reduction is by a factor of 2**4
-        wp = w//(2**4)
-        hp = h//(2**4)
-        self.linear_down = nn.Linear(wp*hp*1024, 1024)
+        wp = w//(2**2)
+        hp = h//(2**2)
+        self.dim_z = 128
+        self.linear_down = nn.Linear(wp*hp*32, self.dim_z)
         # TODO make this match mpgg layers in code
-        self.linear_up = nn.Linear(256, wp*hp*1024)
+        self.linear_up = nn.Linear(mpgg_layers[-1], wp*hp*32)
         
-        self.mpgg = MPGG(dim_z=1024, 
-                           edge_dim=128, 
-                           layers=[1024, 512, 256], 
+        self.mpgg = MPGG(dim_z=self.dim_z, 
+                           edge_dim=64, 
+                           layers=mpgg_layers, 
                            max_nodes=8, device=device) #TODO maxnodes doesn't affect anything right now
         
-        self.up1 = Up(1024, 512)
-        self.up2 = Up(512, 256)
-        self.up3 = Up(256, 128)
-        self.up4 = Up(128, 64)
-        self.outc = OutConv(64, n_channels)
+        self.up1 = Up(32, 16)
+        self.up2 = Up(16, 8)
+
+        self.outc = OutConv(8, n_channels)
 
     def forward(self, x):
         x = x.unsqueeze(0)
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
+
         # flatten and linear projection of UNET down projection
-        z = self.linear_down(x5.view(-1))
+        z = self.linear_down(x3.view(-1))
         nodes = self.mpgg(z)
-        # same conv output shape as x5, but with a batch dimension for every node
-        xup = self.linear_up(nodes).view((-1, x5.shape[1], x5.shape[2], x5.shape[3]))
+        # same conv output shape as x3, but with a batch dimension for every node
+        xup = self.linear_up(nodes).view((nodes.shape[0], x3.shape[1], x3.shape[2], x3.shape[3]))
         xup1 = self.up1(xup)
         xup2 = self.up2(xup1)
-        xup3 = self.up3(xup2)
-        xup4 = self.up4(xup3)
-        xout = self.outc(xup4)
+
+        xout = self.outc(xup2)
         return xout
         # return logits
 
@@ -72,10 +69,8 @@ class DoubleConv(nn.Module):
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
 
@@ -130,7 +125,10 @@ class Up(nn.Module):
 class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutConv, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=1),
+            nn.Sigmoid()
+            )
 
     def forward(self, x):
         return self.conv(x)
