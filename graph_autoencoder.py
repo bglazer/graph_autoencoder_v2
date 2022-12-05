@@ -16,20 +16,22 @@ class LatentGraphVAE(nn.Module):
         self.down1 = Down(8, 16)
         self.down2 = Down(16, 32)
 
-        mpgg_layers = [128, 64, 32]
-        # There are 4 convolutional layers, each of which reduces the size of the input images by 2
+        # TODO Change back to 128
+        self.dim_z = 32
+        mpgg_layers = [self.dim_z, 64, 32]
+        # There are 2 convolutional layers, each of which reduces the size of the input images by 2
         # So, total reduction is by a factor of 2**4
         wp = w//(2**2)
         hp = h//(2**2)
-        self.dim_z = 128
+
         self.linear_down = nn.Linear(wp*hp*32, self.dim_z)
-        # TODO make this match mpgg layers in code
-        self.linear_up = nn.Linear(mpgg_layers[-1], wp*hp*32)
         
         self.mpgg = MPGG(dim_z=self.dim_z, 
                            edge_dim=64, 
                            layers=mpgg_layers, 
                            max_nodes=8, device=device) #TODO maxnodes doesn't affect anything right now
+
+        self.linear_up = nn.Linear(mpgg_layers[-1], wp*hp*32)
         
         self.up1 = Up(32, 16)
         self.up2 = Up(16, 8)
@@ -65,9 +67,9 @@ class DoubleConv(nn.Module):
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.ReLU(inplace=True)
+            nn.LeakyReLU(inplace=True)
         )
 
     def forward(self, x):
@@ -113,7 +115,7 @@ class OutConv(nn.Module):
         super(OutConv, self).__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=1),
-            nn.LeakyReLU()
+            # nn.Sigmoid()
             )
 
     def forward(self, x):

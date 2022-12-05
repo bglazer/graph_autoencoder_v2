@@ -61,11 +61,11 @@ class MPGG(torch.nn.Module):
         edges = edges.squeeze(1)
         nodes = nodes.squeeze(1)
 
-        # breakpoint()
+        breakpoint()
         # Run convolutions
-        for conv in self.convs[:-1]:
-            nodes = conv(nodes, edge_index, edges)
-            nodes = relu(nodes)
-        nodes = self.convs[-1](nodes, edge_index, edges)
+        # for conv in self.convs[:-1]:
+        #     nodes = conv(nodes, edge_index, edges)
+        #     nodes = relu(nodes)
+        # nodes = self.convs[-1](nodes, edge_index, edges)
         
         return nodes
