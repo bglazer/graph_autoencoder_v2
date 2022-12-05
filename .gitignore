@@ -1,6 +1,9 @@
 # Data
 data/*
 
+# Outputs
+outputs/*
+
 # Models
 models/
 
