@@ -18,4 +18,6 @@ lgvae = LatentGraphVAE(n_channels=3, w=320//2, h=480//2, device=device).to(devic
 x = torch.randn((3,320//2,480//2)).to(device)
 
 nodes = lgvae(x)
+l = nodes.sum()
+l.backward()
 breakpoint()
