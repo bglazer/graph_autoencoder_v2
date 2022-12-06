@@ -12,31 +12,32 @@ class LatentGraphVAE(nn.Module):
         self.device = device
         self.n_channels = n_channels
 
-        self.inc = DoubleConv(n_channels, 8)
-        self.down1 = Down(8, 16)
-        self.down2 = Down(16, 32)
-
-        # TODO Change back to 128
-        self.dim_z = 32
-        mpgg_layers = [self.dim_z, 64, 32]
         # There are 2 convolutional layers, each of which reduces the size of the input images by 2
         # So, total reduction is by a factor of 2**4
         wp = w//(2**2)
         hp = h//(2**2)
 
-        self.linear_down = nn.Linear(wp*hp*32, self.dim_z)
+        self.inc = DoubleConv(n_channels, 32)
+        self.down1 = Down(32, 64)
+        self.down2 = Down(64, 128)
+
+        self.dim_z = 128
+
+        self.linear_down = nn.Linear(wp*hp*128, self.dim_z)
+        
+        mpgg_layers = [self.dim_z, self.dim_z, self.dim_z]
         
         self.mpgg = MPGG(dim_z=self.dim_z, 
                            edge_dim=64, 
                            layers=mpgg_layers, 
                            max_nodes=8, device=device) #TODO maxnodes doesn't affect anything right now
 
-        self.linear_up = nn.Linear(mpgg_layers[-1], wp*hp*32)
+        self.linear_up = nn.Linear(mpgg_layers[-1], wp*hp*128)
         
-        self.up1 = Up(32, 16)
-        self.up2 = Up(16, 8)
+        self.up1 = Up(128, 64)
+        self.up2 = Up(64, 32)
 
-        self.outc = OutConv(8, n_channels)
+        self.outc = OutConv(32, n_channels)
 
     def forward(self, x):
         x = x.unsqueeze(0)
