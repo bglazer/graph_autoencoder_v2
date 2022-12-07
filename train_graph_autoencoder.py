@@ -12,7 +12,7 @@ from torchvision.utils import save_image
 from datetime import datetime
 import os
 
-device = 'cuda:1'
+device = 'cuda:0'
 
 transforms = Compose([
     ToTensor(),
@@ -41,14 +41,14 @@ niter = 100000
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, n_epochs*70000//batch_size)
 
 tmstp = datetime.strftime(datetime.now(), '%Y%m%d-%H%M')
-os.mkdir(f'outputs/pooled/{tmstp}')
+os.mkdir(f'outputs/layerwise/{tmstp}')
 
 image,_ = next(iter(dataloader))
 
 for epoch in range(n_epochs):
     i=0
-    # for image,_ in dataloader:
-    for j in range(niter):
+    for image,_ in dataloader:
+    # for j in range(niter):
         image = image.squeeze(0).to(device)
         recon = lgvae(image)
         recon_loss = torch.mean((recon - image)**2) 
@@ -68,4 +68,4 @@ for epoch in range(n_epochs):
             # scheduler.step()
         if i%checkpoint==0:
             torch.save(lgvae.state_dict(), f'models/lgvae_{tmstp}.torch')
-            save_image(recon, f'outputs/pooled/{tmstp}/pooled_{epoch}-{i}.png')
+            save_image(recon, f'outputs/layerwise/{tmstp}/layerwise_{epoch}-{i}.png')

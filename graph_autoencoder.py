@@ -13,35 +13,35 @@ class LatentGraphVAE(nn.Module):
         self.n_channels = n_channels
         sample_factor = 2
 
-        downlayers = [32, 32, 32, 32, 32]
-        uplayers = [32, 32, 32, 32, 3]
+        self.maxnodes = 8
+        downchannels = [32, 32, 32, 32, self.maxnodes]
+        upchannels = [self.maxnodes, 32, 32, 32, 3]
         # There are 2 convolutional layers, each of which reduces the size of the input images by 2
         # So, total reduction is by a factor of 2**4
-        wp = w//(sample_factor**(len(downlayers)-1))
-        hp = h//(sample_factor**(len(downlayers)-1))
+        wp = w//(sample_factor**(len(downchannels)-1))
+        hp = h//(sample_factor**(len(downchannels)-1))
 
-        self.inc = DoubleConv(n_channels, downlayers[0])
+        self.inc = DoubleConv(n_channels, downchannels[0])
         self.downs = nn.ModuleList()
-        for i in range(len(downlayers)-1):
-            self.downs.append(Down(downlayers[i], downlayers[i+1], sample_factor))
+        for i in range(len(downchannels)-1):
+            self.downs.append(Down(downchannels[i], downchannels[i+1], sample_factor))
 
-        self.dim_z = wp*hp*downlayers[-1]
-        # self.linear_down = nn.Linear(wp*hp, self.dim_z)
+        self.dim_z = wp*hp
 
         mpgg_layers = [self.dim_z, self.dim_z]
         self.mpgg = MPGG(dim_z=self.dim_z, 
-                           edge_dim=64, 
-                           layers=mpgg_layers, 
-                           max_nodes=8, device=device) 
+                         edge_dim=64, 
+                         layers=mpgg_layers, 
+                         max_nodes=self.maxnodes, 
+                         device=device) 
         
-        # self.linear_up = nn.Linear(mpgg_layers[-1], wp*hp*uplayers[0])
         self.ups = nn.ModuleList()
-        for i in range(len(uplayers)-1):
-            self.ups.append(Up(uplayers[i], uplayers[i+1], sample_factor))
+        for i in range(len(upchannels)-1):
+            self.ups.append(Up(upchannels[i], upchannels[i+1], sample_factor))
 
-        self.outc = OutConv(uplayers[-1], n_channels)
+        self.outc = OutConv(upchannels[-1], n_channels)
 
-        self.uplayers = uplayers
+        self.uplayers = upchannels
 
     def forward(self, x):
         x = x.unsqueeze(0)
