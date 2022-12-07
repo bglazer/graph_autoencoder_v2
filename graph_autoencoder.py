@@ -11,58 +11,56 @@ class LatentGraphVAE(nn.Module):
         super(LatentGraphVAE, self).__init__()
         self.device = device
         self.n_channels = n_channels
+        sample_factor = 2
 
-        # There are 2 maxpool layers, each of which reduces the size of the input images by 2
+        downlayers = [32, 32, 32, 32, 32]
+        uplayers = [32, 32, 32, 32, 3]
+        # There are 2 convolutional layers, each of which reduces the size of the input images by 2
         # So, total reduction is by a factor of 2**4
-        wp = w//(2**2)
-        hp = h//(2**2)
+        wp = w//(sample_factor**(len(downlayers)-1))
+        hp = h//(sample_factor**(len(downlayers)-1))
 
-        self.inc = DoubleConv(n_channels, 32)
-        self.down1 = Down(32, 64)
-        self.down2 = Down(64, 128)
+        self.inc = DoubleConv(n_channels, downlayers[0])
+        self.downs = nn.ModuleList()
+        for i in range(len(downlayers)-1):
+            self.downs.append(Down(downlayers[i], downlayers[i+1], sample_factor))
 
-        # TODO maybe the latent dim is way too small. Need to check if increasing dim_z helps
-        self.dim_z = 4096
+        self.dim_z = wp*hp*downlayers[-1]
+        # self.linear_down = nn.Linear(wp*hp, self.dim_z)
 
-        self.linear_down = nn.Linear(wp*hp*128, self.dim_z)
-        
-        mpgg_layers = [self.dim_z, self.dim_z, self.dim_z]
-        
+        mpgg_layers = [self.dim_z, self.dim_z]
         self.mpgg = MPGG(dim_z=self.dim_z, 
                            edge_dim=64, 
                            layers=mpgg_layers, 
-                           max_nodes=8, device=device) #TODO maxnodes doesn't affect anything right now
-
-        self.linear_up = nn.Linear(mpgg_layers[-1], wp*hp*128)
+                           max_nodes=8, device=device) 
         
-        self.up1 = Up(128, 64)
-        self.up2 = Up(64, 32)
+        # self.linear_up = nn.Linear(mpgg_layers[-1], wp*hp*uplayers[0])
+        self.ups = nn.ModuleList()
+        for i in range(len(uplayers)-1):
+            self.ups.append(Up(uplayers[i], uplayers[i+1], sample_factor))
 
-        self.outc = OutConv(32, n_channels)
+        self.outc = OutConv(uplayers[-1], n_channels)
+
+        self.uplayers = uplayers
 
     def forward(self, x):
         x = x.unsqueeze(0)
-        x1 = self.inc(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
+        x = self.inc(x)
+        for down in self.downs:
+            x = down(x)
         
-        # flatten and linear projection of UNET down projection
-        z = self.linear_down(x3.view(-1))
-        nodes = self.mpgg(z)
-        # same conv output shape as x3, but with a batch dimension for every node
-        xup = self.linear_up(nodes).view(x3.shape)
-        xup1 = self.up1(xup)
-        xup2 = self.up2(xup1)
+        # flatx = x.amax(dim=1)
+        gz = self.mpgg(x)
+        x = gz.view(x.shape) #.unsqueeze(0)
 
-        xout = self.outc(xup2).squeeze(0)
+        for up in self.ups:
+            x = up(x)
+
+        xout = self.outc(x)
         return xout
-        # return logits
-
 
 """ Parts of the U-Net model """
 class DoubleConv(nn.Module):
-    """(convolution => [BN] => ReLU) * 2"""
-
     def __init__(self, in_channels, out_channels, mid_channels=None):
         super().__init__()
         if not mid_channels:
@@ -81,10 +79,10 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, sample_factor):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(sample_factor),
             DoubleConv(in_channels, out_channels)
         )
 
@@ -95,16 +93,12 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, sample_factor):
         super().__init__()
 
-        # if bilinear, use the normal convolutions to reduce the number of channels
-        if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
-        else:
-            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels)
+        self.up = nn.Upsample(scale_factor=sample_factor, mode='bilinear', align_corners=True)
+        # TODO maybe change back to //2
+        self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1):
         x1 = self.up(x1)
@@ -123,3 +117,4 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+                

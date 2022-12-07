@@ -34,7 +34,7 @@ class MPGG(torch.nn.Module):
         self.max_nodes = max_nodes
         # self.node_generator = MLP([dim_z, dim_z*2, layers[0]])
         self.node_generator = torch.nn.GRU(input_size=dim_z, hidden_size=layers[0])
-        self.edge_generator = MLP([layers[0]*2, layers[0]*4, edge_dim])
+        self.edge_generator = MLP([layers[0]*2, edge_dim*2, edge_dim])
         
     def forward(self, z):
         # Generate node attributes for all nodes

@@ -1,7 +1,5 @@
-# %% [markdown]
-# # Training Basic (Non-Graph) Autoencoder
+# Training Basic (Non-Graph) Autoencoder
 
-# %%
 import torchvision
 import torch
 from torchvision.transforms import Compose, ToTensor, Resize, Scale
@@ -14,10 +12,8 @@ from torchvision.utils import save_image
 from datetime import datetime
 import os
 
-# %%
-device = 'cuda:0'
+device = 'cuda:2'
 
-# %%
 transforms = Compose([
     ToTensor(),
     Resize((320//2, 480//2)),
@@ -25,11 +21,9 @@ transforms = Compose([
 dataset = torchvision.datasets.ImageFolder('data/CLEVR_v1.0/images/train', transform=transforms)
 
 
-# %%
 def to_np(tnsr):
     return tnsr.detach().cpu().numpy().transpose((1,2,0))
 
-# %%
 ae = BasicAE(n_channels=3, w=320//2, h=480//2, device=device).to(device)
 optim = torch.optim.Adam(params=ae.parameters())
 
@@ -37,7 +31,7 @@ dataloader = DataLoader(dataset=dataset, batch_size=1)
 
 optim.zero_grad()
 batch_size = 100
-n_epochs = 20
+n_epochs = 50
 i=0
 batch_loss = 0
 batch_variance = 0
@@ -73,4 +67,3 @@ for epoch in range(n_epochs):
         if i%checkpoint==0:
             torch.save(ae.state_dict(), f'models/lgvae_{tmstp}.torch')
             save_image(recon, f'outputs/basic_ae/{tmstp}/basic_ae_{epoch}-{i}.png')
-            # save_image(ae(first_image), f'outputs/basic_ae/{tmstp}/basic_ae_{epoch}-{i}.png')

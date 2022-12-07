@@ -13,10 +13,10 @@ class BasicAE(nn.Module):
         self.n_channels = n_channels
         sample_factor = 2
 
-        downlayers = [32, 64, 128]#, 128]
-        uplayers = [3, 3, 3]
-        # There are 2 convolutional layers, each of which reduces the size of the input images by 2
-        # So, total reduction is by a factor of 2**4
+        downlayers = [32, 32, 32, 32]
+        uplayers = [32, 32, 32, 3]
+        # There are N convolutional layers, each of which reduces the size of the input images by sample_factor
+        # So, total reduction is by a factor of N**sample_factor-1
         wp = w//(sample_factor**(len(downlayers)-1))
         hp = h//(sample_factor**(len(downlayers)-1))
 
@@ -25,10 +25,10 @@ class BasicAE(nn.Module):
         for i in range(len(downlayers)-1):
             self.downs.append(Down(downlayers[i], downlayers[i+1], sample_factor))
 
-        self.dim_z = 768*4
-        self.linear_down = nn.Linear(wp*hp, self.dim_z)
+        self.dim_z = wp*hp
+        # self.linear_down = nn.Linear(wp*hp, self.dim_z)
         
-        self.linear_up = nn.Linear(self.dim_z, wp*hp*uplayers[0])
+        # self.linear_up = nn.Linear(self.dim_z, wp*hp*uplayers[0])
         self.ups = nn.ModuleList()
         for i in range(len(uplayers)-1):
             self.ups.append(Up(uplayers[i], uplayers[i+1], sample_factor))
@@ -43,9 +43,9 @@ class BasicAE(nn.Module):
         for down in self.downs:
             x = down(x)
 
-        xflat = x.amax(dim=1).unsqueeze(1)
-        z = self.linear_down(xflat.view(-1))
-        x = self.linear_up(z).view((1,self.uplayers[0],xflat.shape[2],xflat.shape[3]))
+        # x = x.amax(dim=1).unsqueeze(1)
+        # z = self.linear_down(xflat.view(-1))
+        # x = self.linear_up(z).view((1,self.uplayers[0],xflat.shape[2],xflat.shape[3]))
 
         for up in self.ups:
             x = up(x)
