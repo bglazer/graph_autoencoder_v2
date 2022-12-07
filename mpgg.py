@@ -32,6 +32,7 @@ class MPGG(torch.nn.Module):
             self.convs.append(EdgeConv(layers[i], layers[i+1], nn=self.attentions[i]))
         
         self.max_nodes = max_nodes
+        # self.node_generator = MLP([dim_z, dim_z*2, layers[0]])
         self.node_generator = torch.nn.GRU(input_size=dim_z, hidden_size=layers[0])
         self.edge_generator = MLP([layers[0]*2, layers[0]*4, edge_dim])
         
@@ -41,7 +42,6 @@ class MPGG(torch.nn.Module):
         latent_repeats = z.expand(self.max_nodes, 1, -1)
         # TODO figure out how to control number of nodes generated
         nodes,_ = self.node_generator(latent_repeats)
-
 
         # Create the fully connected edge index
         # combinations creates edge index without self loops
@@ -62,9 +62,12 @@ class MPGG(torch.nn.Module):
         nodes = nodes.squeeze(1)
 
         # Run convolutions
-        # for conv in self.convs[:-1]:
-        #     nodes = conv(nodes, edge_index, edges)
-        #     nodes = relu(nodes)
-        # nodes = self.convs[-1](nodes, edge_index, edges)
+        for conv in self.convs[:-1]:
+            nodes = conv(nodes, edge_index, edges)
+            nodes = relu(nodes)
+        nodes = self.convs[-1](nodes, edge_index, edges)
         
-        return nodes
+        output = torch.sum(nodes, dim=0)
+        # output = torch.amax(nodes, dim=0)
+        
+        return output
