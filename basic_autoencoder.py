@@ -11,31 +11,46 @@ class BasicAE(nn.Module):
         super(BasicAE, self).__init__()
         self.device = device
         self.n_channels = n_channels
+        sample_factor = 2
 
+        downlayers = [32, 64, 128]#, 128]
+        uplayers = [3, 3, 3]
         # There are 2 convolutional layers, each of which reduces the size of the input images by 2
         # So, total reduction is by a factor of 2**4
-        wp = w//(2**2)
-        hp = h//(2**2)
+        wp = w//(sample_factor**(len(downlayers)-1))
+        hp = h//(sample_factor**(len(downlayers)-1))
 
-        self.inc = DoubleConv(n_channels, 32)
-        self.down1 = Down(32, 64)
-        self.down2 = Down(64, 128)
+        self.inc = DoubleConv(n_channels, downlayers[0])
+        self.downs = nn.ModuleList()
+        for i in range(len(downlayers)-1):
+            self.downs.append(Down(downlayers[i], downlayers[i+1], sample_factor))
+
+        self.dim_z = 768*4
+        self.linear_down = nn.Linear(wp*hp, self.dim_z)
         
-        self.up1 = Up(128, 64)
-        self.up2 = Up(64, 32)
+        self.linear_up = nn.Linear(self.dim_z, wp*hp*uplayers[0])
+        self.ups = nn.ModuleList()
+        for i in range(len(uplayers)-1):
+            self.ups.append(Up(uplayers[i], uplayers[i+1], sample_factor))
 
-        self.outc = OutConv(32, n_channels)
+        self.outc = OutConv(uplayers[-1], n_channels)
+
+        self.uplayers = uplayers
 
     def forward(self, x):
         x = x.unsqueeze(0)
-        x1 = self.inc(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
+        x = self.inc(x)
+        for down in self.downs:
+            x = down(x)
 
-        xup1 = self.up1(x3)
-        xup2 = self.up2(xup1)
+        xflat = x.amax(dim=1).unsqueeze(1)
+        z = self.linear_down(xflat.view(-1))
+        x = self.linear_up(z).view((1,self.uplayers[0],xflat.shape[2],xflat.shape[3]))
 
-        xout = self.outc(xup2)
+        for up in self.ups:
+            x = up(x)
+
+        xout = self.outc(x)
         return xout
         # return logits
 
@@ -62,10 +77,10 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, sample_factor):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(sample_factor),
             DoubleConv(in_channels, out_channels)
         )
 
@@ -76,16 +91,12 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, sample_factor):
         super().__init__()
 
-        # if bilinear, use the normal convolutions to reduce the number of channels
-        if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
-        else:
-            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels)
+        self.up = nn.Upsample(scale_factor=sample_factor, mode='bilinear', align_corners=True)
+        # TODO maybe change back to //2
+        self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1):
         x1 = self.up(x1)
