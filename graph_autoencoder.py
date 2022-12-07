@@ -12,7 +12,7 @@ class LatentGraphVAE(nn.Module):
         self.device = device
         self.n_channels = n_channels
 
-        # There are 2 convolutional layers, each of which reduces the size of the input images by 2
+        # There are 2 maxpool layers, each of which reduces the size of the input images by 2
         # So, total reduction is by a factor of 2**4
         wp = w//(2**2)
         hp = h//(2**2)
@@ -21,7 +21,8 @@ class LatentGraphVAE(nn.Module):
         self.down1 = Down(32, 64)
         self.down2 = Down(64, 128)
 
-        self.dim_z = 128
+        # TODO maybe the latent dim is way too small. Need to check if increasing dim_z helps
+        self.dim_z = 4096
 
         self.linear_down = nn.Linear(wp*hp*128, self.dim_z)
         
@@ -44,16 +45,16 @@ class LatentGraphVAE(nn.Module):
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
-
+        
         # flatten and linear projection of UNET down projection
         z = self.linear_down(x3.view(-1))
         nodes = self.mpgg(z)
         # same conv output shape as x3, but with a batch dimension for every node
-        xup = self.linear_up(nodes).view((nodes.shape[0], x3.shape[1], x3.shape[2], x3.shape[3]))
+        xup = self.linear_up(nodes).view(x3.shape)
         xup1 = self.up1(xup)
         xup2 = self.up2(xup1)
 
-        xout = self.outc(xup2)
+        xout = self.outc(xup2).squeeze(0)
         return xout
         # return logits
 
