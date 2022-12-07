@@ -70,10 +70,6 @@ for epoch in range(n_epochs):
                   f"lr={lr} total={batch_total}",
              flush=True)
             batch_loss = 0
-            batch_overlap = 0
-            batch_variance = 0
-            batch_l1 = 0
-            batch_total = 0
             scheduler.step()
         if i%checkpoint==0:
             torch.save(lgvae.state_dict(), f'models/lgvae_{tmstp}.torch')
@@ -90,18 +86,6 @@ axs[0].imshow(recon)
 axs[1].imshow(to_np(image))
 
 # %%
-
-
-# %%
-nodes[:,2,:4,:4]
-
-# %%
-
-
-# %% [markdown]
-# ## Validation Set testing
-
-# %%
 val_dataset = torchvision.datasets.ImageFolder('data/CLEVR_v1.0/images/train', transform=transforms)
 val_loader = DataLoader(dataset=val_dataset, batch_size=1)
 iter_val_loader = iter(val_loader)
@@ -114,8 +98,7 @@ with torch.no_grad():
     for i in range(10):
         val_image,_ = next(iter_val_loader)
         val_image = val_image.squeeze(0).to(device)
-        val_nodes = lgvae(val_image)
-        val_recon = build_image(val_nodes)
+        val_recon = lgvae(val_image)
         val_nprecon = to_np(val_recon)
         val_recons.append(val_recon)
     # print((val_recons[8] - vala_recons[2]).sum())
