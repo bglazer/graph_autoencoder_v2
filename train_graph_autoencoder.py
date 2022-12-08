@@ -12,7 +12,7 @@ from torchvision.utils import save_image
 from datetime import datetime
 import os
 
-device = 'cuda:0'
+device = 'cuda:1'
 
 transforms = Compose([
     ToTensor(),
@@ -28,7 +28,7 @@ lgvae = LatentGraphVAE(n_channels=3, w=320//2, h=480//2, device=device).to(devic
 optim = torch.optim.Adam(params=lgvae.parameters())
 
 optim.zero_grad()
-batch_size = 1000
+batch_size = 10
 n_epochs = 100
 i=0
 batch_loss = 0
@@ -62,8 +62,7 @@ for epoch in range(n_epochs):
             optim.zero_grad()
             lr = scheduler.get_last_lr()
             print(f"epoch={epoch:4d} n={i:8d} loss={batch_loss:10.6f} " +
-                  f"lr={lr} total={batch_total}",
-             flush=True)
+                  f"lr={lr} total={batch_total}",flush=True)
             batch_loss = 0
             # scheduler.step()
         if i%checkpoint==0:

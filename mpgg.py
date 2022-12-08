@@ -18,12 +18,11 @@ def MLP(layers):
         
 # Message Passing Graph Generator
 class MPGG(torch.nn.Module):
-    def __init__(self, dim_z, edge_dim, layers, layers_per_node, max_nodes, device):
+    def __init__(self, dim_z, edge_dim, layers, max_nodes, device):
         super(MPGG, self).__init__()
         self.device = device
         self.dim_z = dim_z
         self.edge_dim = edge_dim
-        self.layers_per_node = layers_per_node
         
         self.attentions = ModuleList()
         for i in range(len(layers)):
@@ -36,16 +35,15 @@ class MPGG(torch.nn.Module):
         self.max_nodes = max_nodes
         self.edge_generator = MLP([layers[0]*2, edge_dim*2, edge_dim])
         
-    def forward(self, z):
-        nodes = z.view((z.shape[1]//self.layers_per_node, -1))
-
-        # Create the fully connected edge index
-        # combinations creates edge index without self loops
-        # TODO modify this to work with varying numbers of nodes
-        a = torch.combinations(torch.arange(self.max_nodes), r=2)
-        # exchanges cols of "a", i.e. create edges in opposite direction
-        b = a[:,[1,0]]
-        edge_index = torch.vstack((a,b)).t().to(self.device)
+    def forward(self, nodes, edge_index=None):
+        if edge_index is None:
+            # Create the fully connected edge index
+            # combinations creates edge index without self loops
+            # TODO modify this to work with varying numbers of nodes
+            a = torch.combinations(torch.arange(self.max_nodes), r=2)
+            # exchanges cols of "a", i.e. create edges in opposite direction
+            b = a[:,[1,0]]
+            edge_index = torch.vstack((a,b)).t().to(self.device)
         # Generate edge attributes for all pairs of nodes
         srcs = nodes[edge_index[0,:]]
         dsts = nodes[edge_index[1,:]]

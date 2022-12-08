@@ -21,6 +21,8 @@ class LatentGraphVAE(nn.Module):
         # So, total reduction is by a factor of 2**4
         wp = w//(sample_factor**(len(downchannels)-1))
         hp = h//(sample_factor**(len(downchannels)-1))
+        self.wp = wp
+        self.hp = hp
 
         self.inc = DoubleConv(n_channels, downchannels[0])
         self.downs = nn.ModuleList()
@@ -34,7 +36,6 @@ class LatentGraphVAE(nn.Module):
                          edge_dim=64, 
                          layers=mpgg_layers, 
                          max_nodes=self.maxnodes, 
-                         layers_per_node=self.layers_per_node,
                          device=device) 
         
         self.ups = nn.ModuleList()
@@ -46,8 +47,9 @@ class LatentGraphVAE(nn.Module):
         self.uplayers = upchannels
 
     def forward(self, x):
-        enc = self.encode(x)
-        nodes, edge_attentions = self.graph_encode(enc)
+        # breakpoint()
+        enc, nodes = self.encode(x)
+        nodes, edge_attentions = self.graph_encode(nodes)
         out = self.decode(nodes)
         return out, nodes, edge_attentions
 
@@ -56,11 +58,18 @@ class LatentGraphVAE(nn.Module):
         x = self.inc(x)
         for down in self.downs:
             x = down(x)
-        return x
+        nodes = x.view((x.shape[1]//self.layers_per_node, -1))
+        return x, nodes
 
-    def graph_encode(self, x):
-        gz, edge_attentions = self.mpgg(x)
-        x = gz.view(x.shape) 
+    def graph_encode(self, nodes, edge_index=None):
+        gz, edge_attentions = self.mpgg(nodes, edge_index)
+        #############################
+        # TODO SOMETHING IS MESSED UP WITH THE DIMENSIONS
+        # THIS SHOULD BE THE OTHER WAY (i.e. wp then hp)
+        # However, either the perturbation notebook or the training breaks
+        # in a mutually exclusive way when i switch them.
+        #############################
+        x = gz.view((1, self.maxnodes*self.layers_per_node, self.hp, self.wp)) 
         return x, edge_attentions
 
     def decode(self, x):

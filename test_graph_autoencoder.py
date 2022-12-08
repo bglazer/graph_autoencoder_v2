@@ -17,7 +17,7 @@ print("Number of parameters:", n_params)
 
 x = torch.randn((3,320//2,480//2)).to(device)
 
-nodes, attentions = lgvae(x)
-l = nodes.sum()
+recon, nodes, attentions = lgvae(x)
+l = recon.sum()
 l.backward()
 breakpoint()
