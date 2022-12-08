@@ -28,8 +28,8 @@ lgvae = LatentGraphVAE(n_channels=3, w=320//2, h=480//2, device=device).to(devic
 optim = torch.optim.Adam(params=lgvae.parameters())
 
 optim.zero_grad()
-batch_size = 100
-n_epochs = 20
+batch_size = 1000
+n_epochs = 100
 i=0
 batch_loss = 0
 batch_variance = 0
@@ -50,7 +50,7 @@ for epoch in range(n_epochs):
     for image,_ in dataloader:
     # for j in range(niter):
         image = image.squeeze(0).to(device)
-        recon = lgvae(image)
+        recon, nodes, edge_attentions = lgvae(image)
         recon_loss = torch.mean((recon - image)**2) 
         loss = recon_loss
         loss.backward()
@@ -61,7 +61,7 @@ for epoch in range(n_epochs):
             optim.step()
             optim.zero_grad()
             lr = scheduler.get_last_lr()
-            print(f"epoch={epoch:4d} n={i:8d} loss={batch_loss:8.4f} " +
+            print(f"epoch={epoch:4d} n={i:8d} loss={batch_loss:10.6f} " +
                   f"lr={lr} total={batch_total}",
              flush=True)
             batch_loss = 0

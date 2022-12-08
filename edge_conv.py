@@ -50,8 +50,11 @@ class EdgeConv(MessagePassing):
         if isinstance(x, Tensor):
             x: OptPairTensor = (x, x)
 
+        messages, attentions = self.message(x[0][edge_index[0,:]], edge_attr)
+        out = self.aggregate(messages, edge_index[1,:])
+
         # propagate_type: (x: OptPairTensor, edge_attr: OptTensor)
-        out = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=size)
+        # out = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=size)
 
         x_r = x[1]
         if x_r is not None and self.root is not None:
@@ -60,14 +63,14 @@ class EdgeConv(MessagePassing):
         if self.bias is not None:
             out += self.bias
 
-        return out
+        return out, attentions
 
     def message(self, x_j: Tensor, edge_attr: Tensor) -> Tensor:
         attention = self.nn(torch.hstack((x_j, edge_attr)))
         attention = sigmoid(attention)
 
         # TODO figure out how to get attentions back out of this
-        return self.theta(x_j) * attention
+        return self.theta(x_j) * attention, attention
 
     def __repr__(self):
         return '{}({}, {}, aggr="{}", nn={})'.format(self.__class__.__name__,

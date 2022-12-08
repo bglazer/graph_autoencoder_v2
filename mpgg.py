@@ -18,11 +18,12 @@ def MLP(layers):
         
 # Message Passing Graph Generator
 class MPGG(torch.nn.Module):
-    def __init__(self, dim_z, edge_dim, layers, max_nodes, device):
+    def __init__(self, dim_z, edge_dim, layers, layers_per_node, max_nodes, device):
         super(MPGG, self).__init__()
         self.device = device
         self.dim_z = dim_z
         self.edge_dim = edge_dim
+        self.layers_per_node = layers_per_node
         
         self.attentions = ModuleList()
         for i in range(len(layers)):
@@ -36,7 +37,7 @@ class MPGG(torch.nn.Module):
         self.edge_generator = MLP([layers[0]*2, edge_dim*2, edge_dim])
         
     def forward(self, z):
-        nodes = z.view((z.shape[1], -1))
+        nodes = z.view((z.shape[1]//self.layers_per_node, -1))
 
         # Create the fully connected edge index
         # combinations creates edge index without self loops
@@ -56,10 +57,10 @@ class MPGG(torch.nn.Module):
 
         # Run convolutions
         for conv in self.convs[:-1]:
-            nodes = conv(nodes, edge_index, edges)
+            nodes,_ = conv(nodes, edge_index, edges)
             nodes = relu(nodes)
-        nodes = self.convs[-1](nodes, edge_index, edges)
+        nodes, attentions = self.convs[-1](nodes, edge_index, edges)
         
         # output = torch.sum(nodes, dim=0)
         
-        return nodes
+        return nodes, attentions

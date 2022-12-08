@@ -14,8 +14,9 @@ class LatentGraphVAE(nn.Module):
         sample_factor = 2
 
         self.maxnodes = 8
-        downchannels = [32, 32, 32, 32, self.maxnodes]
-        upchannels = [self.maxnodes, 32, 32, 32, 3]
+        self.layers_per_node = 3
+        downchannels = [32, 32, 32, 32, self.maxnodes*self.layers_per_node]
+        upchannels = [self.maxnodes*self.layers_per_node, 32, 32, 32, 3]
         # There are 2 convolutional layers, each of which reduces the size of the input images by 2
         # So, total reduction is by a factor of 2**4
         wp = w//(sample_factor**(len(downchannels)-1))
@@ -26,13 +27,14 @@ class LatentGraphVAE(nn.Module):
         for i in range(len(downchannels)-1):
             self.downs.append(Down(downchannels[i], downchannels[i+1], sample_factor))
 
-        self.dim_z = wp*hp
+        self.dim_z = wp*hp*self.layers_per_node
 
         mpgg_layers = [self.dim_z, self.dim_z]
         self.mpgg = MPGG(dim_z=self.dim_z, 
                          edge_dim=64, 
                          layers=mpgg_layers, 
                          max_nodes=self.maxnodes, 
+                         layers_per_node=self.layers_per_node,
                          device=device) 
         
         self.ups = nn.ModuleList()
@@ -44,20 +46,30 @@ class LatentGraphVAE(nn.Module):
         self.uplayers = upchannels
 
     def forward(self, x):
+        enc = self.encode(x)
+        nodes, edge_attentions = self.graph_encode(enc)
+        out = self.decode(nodes)
+        return out, nodes, edge_attentions
+
+    def encode(self, x):
         x = x.unsqueeze(0)
         x = self.inc(x)
         for down in self.downs:
             x = down(x)
-        
-        # flatx = x.amax(dim=1)
-        gz = self.mpgg(x)
-        x = gz.view(x.shape) #.unsqueeze(0)
+        return x
 
+    def graph_encode(self, x):
+        gz, edge_attentions = self.mpgg(x)
+        x = gz.view(x.shape) 
+        return x, edge_attentions
+
+    def decode(self, x):
         for up in self.ups:
             x = up(x)
 
         xout = self.outc(x)
         return xout
+
 
 """ Parts of the U-Net model """
 class DoubleConv(nn.Module):
