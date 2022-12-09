@@ -51,10 +51,11 @@ class EdgeConv(MessagePassing):
             x: OptPairTensor = (x, x)
 
         messages, attentions = self.message(x[0][edge_index[0,:]], edge_attr)
+        # TODO aggregate is currently sum
+        # Could be really interesting to change to amax aggregation
+        # Would be equivalent to having exactly one input in each feature dim
+        # i.e. n_features different graphs with in degree==1 for all nodes?
         out = self.aggregate(messages, edge_index[1,:])
-
-        # propagate_type: (x: OptPairTensor, edge_attr: OptTensor)
-        # out = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=size)
 
         x_r = x[1]
         if x_r is not None and self.root is not None:
