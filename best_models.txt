@@ -1,5 +1,6 @@
 20221209-1133 - max layerwise
 20221208-0156 - pooled layerwise
 20221209-1617 - max rnn
+20221209-1636 - pooled rnn
 
 

@@ -13,7 +13,7 @@ from datetime import datetime
 import os
 
 # %%
-device = 'cuda:1'
+device = 'cuda:0'
 
 # %%
 transforms = Compose([
@@ -81,7 +81,7 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, niter//batch_size)
 
 tmstp = datetime.strftime(datetime.now(), '%Y%m%d-%H%M')
 
-os.mkdir(f'outputs/rnn_layerwise/{tmstp}')
+os.mkdir(f'outputs/rnn_pooled/{tmstp}')
 
 image,_ = next(iter(dataloader))
 
@@ -95,12 +95,12 @@ for epoch in range(n_epochs):
     # for j in range(niter):
         image = image.squeeze(0).to(device)
         nodes = lgvae(image)
-        recon = build_image(nodes)
-        # recon = nodes.sum(dim=0)
+        # recon = build_image(nodes)
+        recon = nodes.squeeze(dim=0)
         overlap = overlap_penalty(nodes)
         variance_penalty = variance(nodes)
         recon_loss = torch.mean((recon - image)**2) 
-        loss = recon_loss + overlap + variance_penalty
+        loss = recon_loss # + overlap + variance_penalty
         loss.backward()
         batch_loss += float(recon_loss)/batch_size
         batch_overlap += float(overlap)/batch_size
@@ -134,6 +134,6 @@ for epoch in range(n_epochs):
                 midx = torch.argmax(nodes.sum(dim=1), dim=0)
                 oh = one_hot(midx, num_classes=n_nodes)
                 node = nodes[node_idx]*oh[:,:,node_idx]
-                save_image(nodes[node_idx], f'outputs/rnn_layerwise/{tmstp}/{epoch}-{i}-{node_idx}.png')
+                save_image(nodes[node_idx], f'outputs/rnn_pooled/{tmstp}/{epoch}-{i}-{node_idx}.png')
 
 # %%

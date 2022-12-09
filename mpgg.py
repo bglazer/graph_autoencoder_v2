@@ -60,7 +60,7 @@ class MPGG(torch.nn.Module):
         nodepairs = nodepairs.squeeze(1)
         edges = edges.squeeze(1)
         nodes = nodes.squeeze(1)
-
+        
         # Run convolutions
         # for conv in self.convs[:-1]:
         #     nodes = conv(nodes, edge_index, edges)

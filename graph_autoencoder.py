@@ -50,6 +50,8 @@ class LatentGraphVAE(nn.Module):
         nodes = self.mpgg(z)
         # same conv output shape as x3, but with a batch dimension for every node
         xup = self.linear_up(nodes).view((nodes.shape[0], x3.shape[1], x3.shape[2], x3.shape[3]))
+        # combine node representations
+        xup = xup.sum(dim=0).unsqueeze(0)
         xup1 = self.up1(xup)
         xup2 = self.up2(xup1)
 
