@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from torchvision.utils import save_image
 from datetime import datetime
+import os
 
 # %%
 device = 'cuda:1'
@@ -66,8 +67,8 @@ lgvae = LatentGraphVAE(n_channels=3, w=320//2, h=480//2, device=device).to(devic
 optim = torch.optim.Adam(params=lgvae.parameters())
 
 optim.zero_grad()
-batch_size = 100
-n_epochs = 100
+batch_size = 10
+n_epochs = 10
 i=0
 batch_loss = 0
 batch_variance = 0
@@ -80,7 +81,12 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, niter//batch_size)
 
 tmstp = datetime.strftime(datetime.now(), '%Y%m%d-%H%M')
 
+os.mkdir(f'outputs/rnn_layerwise/{tmstp}')
+
 image,_ = next(iter(dataloader))
+
+best_loss = float('inf')
+best_state = None
 # print(image.shape)
 
 for epoch in range(n_epochs):
@@ -115,12 +121,19 @@ for epoch in range(n_epochs):
             batch_variance = 0
             batch_l1 = 0
             batch_total = 0
+            if batch_loss < best_loss:
+                best_loss = batch_loss
+                best_state = lgvae.state_dict()
+
             # scheduler.step()
         if i%checkpoint==0:
-            torch.save(lgvae.state_dict(), f'models/lgvae_{tmstp}.torch')
+            torch.save(lgvae.state_dict(), f'models/lgvae_latest_{tmstp}.torch')
+            torch.save(best_state, f'models/lgvae_best_{tmstp}.torch')
             n_nodes = nodes.shape[0]
             for node_idx in range(n_nodes):
                 midx = torch.argmax(nodes.sum(dim=1), dim=0)
                 oh = one_hot(midx, num_classes=n_nodes)
                 node = nodes[node_idx]*oh[:,:,node_idx]
-                save_image(nodes[node_idx], f'outputs/graph_ae_{epoch}-{i}-{node_idx}_{tmstp}.png')
+                save_image(nodes[node_idx], f'outputs/rnn_layerwise/{tmstp}/{epoch}-{i}-{node_idx}.png')
+
+# %%
