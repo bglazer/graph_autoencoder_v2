@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
+import torch
 
 from mpgg import MPGG
 
@@ -16,7 +17,7 @@ class LatentGraphVAE(nn.Module):
         self.maxnodes = 8
         self.layers_per_node = 3
         downchannels = [32, 32, 32, 32, self.maxnodes*self.layers_per_node]
-        upchannels = [self.maxnodes*self.layers_per_node, 32, 32, 32, 3]
+        upchannels = [3, 32, 32, 32, 3]
         # There are 2 convolutional layers, each of which reduces the size of the input images by 2
         # So, total reduction is by a factor of 2**4
         wp = w//(sample_factor**(len(downchannels)-1))
@@ -49,8 +50,8 @@ class LatentGraphVAE(nn.Module):
     def forward(self, x):
         enc, nodes = self.encode(x)
         gnodes, edge_attentions = self.graph_encode(nodes)
-        out = self.decode(gnodes)
-        return out, nodes, edge_attentions
+        img, layers = self.decode(gnodes)
+        return img, layers, nodes, edge_attentions
 
     def encode(self, x):
         x = x.unsqueeze(0)
@@ -65,12 +66,19 @@ class LatentGraphVAE(nn.Module):
         return nodes, edge_attentions
 
     def decode(self, nodes):
-        x = nodes.view((1,self.maxnodes*self.layers_per_node, self.hp, self.wp)) 
+        x = nodes.view((self.maxnodes, self.layers_per_node, self.hp, self.wp)) 
         for up in self.ups:
             x = up(x)
 
         xout = self.outc(x)
-        return xout
+        img = self.build_image(xout)
+        return img, xout
+        
+    def build_image(self, layers):
+        midx = torch.argmax(layers.sum(dim=1), dim=0)
+        recon = torch.gather(layers, dim=0, index=midx.expand((1,3,-1,-1))).squeeze(0)
+        # recon = layers.sum(dim=0)
+        return recon
 
 
 """ Parts of the U-Net model """
