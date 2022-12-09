@@ -32,10 +32,9 @@ batch_size = 10
 n_epochs = 100
 i=0
 batch_loss = 0
-batch_variance = 0
-batch_overlap = 0
-batch_l1 = 0
 batch_total = 0
+best_loss = float('inf')
+best_state = None
 checkpoint = 1000
 niter = 100000
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, n_epochs*70000//batch_size)
@@ -63,8 +62,14 @@ for epoch in range(n_epochs):
             lr = scheduler.get_last_lr()
             print(f"epoch={epoch:4d} n={i:8d} loss={batch_loss:10.6f} " +
                   f"lr={lr} total={batch_total}",flush=True)
+            if batch_loss < best_loss:
+                best_loss = batch_loss
+                best_state = lgvae.state_dict()
+
             batch_loss = 0
+
             # scheduler.step()
         if i%checkpoint==0:
-            torch.save(lgvae.state_dict(), f'models/lgvae_{tmstp}.torch')
+            torch.save(lgvae.state_dict(), f'models/lgvae_latest_{tmstp}.torch')
+            torch.save(best_state, f'models/lgvae_best_{tmstp}.torch')
             save_image(recon, f'outputs/layerwise/{tmstp}/layerwise_{epoch}-{i}.png')
