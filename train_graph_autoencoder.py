@@ -24,7 +24,7 @@ dataloader = DataLoader(dataset=dataset, batch_size=1)
 def to_np(tnsr):
     return tnsr.detach().cpu().numpy().transpose((1,2,0))
 
-lgvae = LatentGraphVAE(n_channels=3, w=320//2, h=480//2, device=device).to(device)
+lgvae = LatentGraphVAE(n_channels=3, h=320//2, w=480//2, device=device).to(device)
 optim = torch.optim.Adam(params=lgvae.parameters())
 
 optim.zero_grad()
@@ -42,6 +42,7 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, n_epochs*70000//ba
 
 tmstp = datetime.strftime(datetime.now(), '%Y%m%d-%H%M')
 os.mkdir(f'outputs/layerwise/{tmstp}')
+os.mkdir(f'outputs/values/layerwise/{tmstp}/')
 
 image,_ = next(iter(dataloader))
 
@@ -67,4 +68,6 @@ for epoch in range(n_epochs):
             # scheduler.step()
         if i%checkpoint==0:
             torch.save(lgvae.state_dict(), f'models/lgvae_{tmstp}.torch')
+            torch.save(edge_attentions, f'outputs/values/layerwise/{tmstp}/attentions_{epoch}-{i}.torch')
+            torch.save(nodes, f'outputs/values/layerwise/{tmstp}/nodes_{epoch}-{i}.torch')
             save_image(recon, f'outputs/layerwise/{tmstp}/layerwise_{epoch}-{i}.png')

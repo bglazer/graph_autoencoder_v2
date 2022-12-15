@@ -49,9 +49,9 @@ class LatentGraphVAE(nn.Module):
     def forward(self, x):
         # breakpoint()
         enc, nodes = self.encode(x)
-        nodes, edge_attentions = self.graph_encode(nodes)
-        out = self.decode(nodes)
-        return out, nodes, edge_attentions
+        gnodes, edge_attentions = self.graph_encode(nodes)
+        out = self.decode(gnodes)
+        return out, gnodes, edge_attentions
 
     def encode(self, x):
         x = x.unsqueeze(0)
@@ -62,17 +62,11 @@ class LatentGraphVAE(nn.Module):
         return x, nodes
 
     def graph_encode(self, nodes, edge_index=None):
-        gz, edge_attentions = self.mpgg(nodes, edge_index)
-        #############################
-        # TODO SOMETHING IS MESSED UP WITH THE DIMENSIONS
-        # THIS SHOULD BE THE OTHER WAY (i.e. wp then hp)
-        # However, either the perturbation notebook or the training breaks
-        # in a mutually exclusive way when i switch them.
-        #############################
-        x = gz.view((1, self.maxnodes*self.layers_per_node, self.hp, self.wp)) 
-        return x, edge_attentions
+        nodes, edge_attentions = self.mpgg(nodes, edge_index)
+        return nodes, edge_attentions
 
     def decode(self, x):
+        x = x.view((1, self.maxnodes*self.layers_per_node, self.hp, self.wp)) 
         for up in self.ups:
             x = up(x)
 
